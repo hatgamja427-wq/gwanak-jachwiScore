@@ -24,8 +24,7 @@ except Exception:
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 # ─── 전역 설정 ───────────────────────────────────────────────
-import os
-BASE = os.path.join(os.path.dirname(__file__), 'data') + '/'
+BASE = 'data/'
 
 카테고리 = ['주거비', '대중교통', '서울대', '안전', '식당', '병원/약국', '카페', '세탁소', '마트']
 컬럼맵 = {
@@ -57,7 +56,7 @@ VOTE_FILE = 'votes.json'
 def get_rent_data():
     """주거 파트: 전월세 원본 → 행정동별 1㎡당 환산월세"""
     # 1. 환산월세 계산 (연 5% 전월세전환율)
-    df = pd.read_csv(BASE + '관악구_전월세_정제_최종.csv', encoding='utf-8-sig')
+    df = pd.read_csv(BASE + 'rent.csv', encoding='utf-8-sig')
     df = df[df['임대면적(㎡)'] > 0].copy()
     df['환산월세(만원)'] = (df['보증금(만원)'] * 0.05 / 12) + df['임대료(만원)']
     df['1㎡당_환산월세'] = df['환산월세(만원)'] / df['임대면적(㎡)']
@@ -68,7 +67,7 @@ def get_rent_data():
                    .rename(columns={'1㎡당_환산월세': '환산월세'}))
 
     # 3. KIK 매핑: 법정동 → 행정동
-    kik = pd.read_excel(BASE + 'KIKmix.20250701(말소코드포함).xlsx')
+    kik = pd.read_excel(BASE + 'kik.xlsx')
     kik_gwanak = (kik[kik['시군구명'] == '관악구'][['읍면동명', '동리명']]
                     .dropna()
                     .rename(columns={'읍면동명': '행정동', '동리명': '법정동명'})
@@ -76,7 +75,7 @@ def get_rent_data():
     kik_gwanak = kik_gwanak[kik_gwanak['행정동'].isin(VALID_DONGS)]
 
     # 4. 면적 데이터 (비례배분용)
-    area_raw = pd.read_csv(BASE + '행정구역(동별)_20260523203645.csv', encoding='utf-8-sig')
+    area_raw = pd.read_csv(BASE + 'area.csv', encoding='utf-8-sig')
     area_df = (
         area_raw[(area_raw['동별(2)'] == '관악구') & (area_raw['동별(3)'] != '소계')]
         [['동별(3)', '2025']].copy()
@@ -111,10 +110,10 @@ def get_amenity_data():
     AREA_WEIGHT, COUNT_WEIGHT = 0.5, 0.5
 
     # 데이터 로드
-    df_stores = pd.read_csv(BASE + '서울시_관악구_맞춤형_점포데이터_2025.csv',           encoding='utf-8-sig')
-    df_sales  = pd.read_csv(BASE + '서울시_관악구_맞춤형_추정매출_2025.csv',             encoding='utf-8-sig')
-    df_med    = pd.read_csv(BASE + '서울시_관악구_맞춤형_상비약_행정동포함_2025_최종.csv', encoding='utf-8-sig')
-    area_raw  = pd.read_csv(BASE + '행정구역(동별)_20260523203645.csv',                 encoding='utf-8-sig')
+    df_stores = pd.read_csv(BASE + 'stores.csv',           encoding='utf-8-sig')
+    df_sales  = pd.read_csv(BASE + 'sales.csv',             encoding='utf-8-sig')
+    df_med    = pd.read_csv(BASE + 'medicine.csv', encoding='utf-8-sig')
+    area_raw  = pd.read_csv(BASE + 'area.csv',                 encoding='utf-8-sig')
 
     # 면적 테이블
     area_df = (
@@ -191,12 +190,37 @@ def get_amenity_data():
     return result
 
 
-
 def get_safety_data():
-    """안전 파트: 완성된 CSV 직접 로드"""
-    df = pd.read_csv(BASE + '관악구_최종_안전점수_순위.csv', encoding='utf-8-sig')
-    result = (df[['행정동', '최종_안전_점수']]
-              .rename(columns={'행정동': 'dong', '최종_안전_점수': '안전_점수'}))
+    """안전 파트: 파출소/유흥업소/인구 원본 → 행정동별 안전 점수"""
+    df_police        = pd.read_csv(BASE + 'police.csv')
+    df_entertainment = pd.read_csv(BASE + 'entertainment.csv')
+    df_police        = df_police.rename(columns={'행정동명': '행정동'})
+    df_entertainment = df_entertainment.rename(columns={'행정동명': '행정동'})
+
+    df_pop_raw     = pd.read_csv(BASE + 'population.csv', skiprows=3, header=None)
+    df_pop_cleaned = df_pop_raw[[1, 2, 4]].copy()
+    df_pop_cleaned.columns = ['자치구', '행정동', '총인구수']
+    df_gwanak_pop  = df_pop_cleaned[df_pop_cleaned['자치구'] == '관악구'].reset_index(drop=True)
+
+    df_merged = pd.merge(df_gwanak_pop, df_police,        on='행정동', how='left')
+    df_merged = pd.merge(df_merged,     df_entertainment, on='행정동', how='left')
+    df_merged['지구대_파출소_개수'] = df_merged['지구대_파출소_개수'].fillna(0)
+    df_merged['유흥업소개수']       = df_merged['유흥업소개수'].fillna(0)
+    df_merged = df_merged[df_merged['행정동'] != '소계'].reset_index(drop=True)
+
+    df_merged['지구대_인구밀도']   = df_merged['지구대_파출소_개수'] / df_merged['총인구수'] * 10000
+    df_merged['유흥업소_인구밀도'] = df_merged['유흥업소개수']       / df_merged['총인구수'] * 10000
+
+    def min_max(s):
+        return (s - s.min()) / (s.max() - s.min()) if s.max() != s.min() else s * 0
+
+    df_merged['지구대_Scaled']     = min_max(df_merged['지구대_인구밀도'])
+    df_merged['유흥업소_안전지표'] = 1 - min_max(df_merged['유흥업소_인구밀도'])
+    df_merged['안전_점수']         = (
+        0.4 * df_merged['지구대_Scaled'] + 0.6 * df_merged['유흥업소_안전지표']
+    ) * 100
+
+    result = df_merged[['행정동', '안전_점수']].rename(columns={'행정동': 'dong'})
     result['dong'] = result['dong'].replace('온천동', '은천동')
     return result
 
@@ -205,8 +229,8 @@ def get_safety_data():
 def load_data():
     """모든 파트 통합 및 정규화"""
     # 교통 (CSV 직접 읽기)
-    df_transport = pd.read_csv(BASE + '관악구_교통점수.csv',    encoding='utf-8-sig')
-    df_snu       = pd.read_csv(BASE + '관악구_서울대접근성.csv', encoding='utf-8-sig')
+    df_transport = pd.read_csv(BASE + 'transport.csv',    encoding='utf-8-sig')
+    df_snu       = pd.read_csv(BASE + 'snu.csv', encoding='utf-8-sig')
 
     transport = (df_transport[['행정동', '교통_종합점수']]
                  .rename(columns={'행정동': 'dong'}))
