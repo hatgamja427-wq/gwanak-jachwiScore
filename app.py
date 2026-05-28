@@ -502,28 +502,4 @@ st.divider()
 # 투표
 # ════════════════════════════════════════════════════════════
 
-st.subheader("📊 어떤 시각화 방식이 유용했나요? (복수 선택 가능)")
 
-v1 = st.checkbox('방향1 — 등급표 + 한줄 요약')
-v2 = st.checkbox('방향2 — 레이더 차트')
-v3 = st.checkbox('방향3 — 평균 대비 색깔 표')
-v4 = st.checkbox('방향4 — 가중치 강조 막대그래프')
-
-if st.button('투표하기'):
-    if not any([v1, v2, v3, v4]):
-        st.warning("하나 이상 선택해주세요.")
-    else:
-        if v1: save_vote('방향1')
-        if v2: save_vote('방향2')
-        if v3: save_vote('방향3')
-        if v4: save_vote('방향4')
-        st.success("✅ 투표해주셔서 감사합니다!")
-        st.rerun()
-
-st.subheader("현재 투표 현황")
-votes   = load_votes()
-vote_df = pd.DataFrame({
-    '시각화 방식': ['방향1 등급표', '방향2 레이더', '방향3 색깔표', '방향4 막대그래프'],
-    '투표 수':    [votes['방향1'], votes['방향2'], votes['방향3'], votes['방향4']]
-})
-st.bar_chart(vote_df.set_index('시각화 방식'))
