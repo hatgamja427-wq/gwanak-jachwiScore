@@ -68,7 +68,7 @@ def get_rent_data():
                    .rename(columns={'1㎡당_환산월세': '환산월세'}))
 
     # 3. KIK 매핑: 법정동 → 행정동
-    kik = pd.read_excel(BASE + 'KIKmix_20250701_(말소코드포함) .xlsx')
+    kik = pd.read_excel(BASE + 'KIKmix.20250701(말소코드포함).xlsx')
     kik_gwanak = (kik[kik['시군구명'] == '관악구'][['읍면동명', '동리명']]
                     .dropna()
                     .rename(columns={'읍면동명': '행정동', '동리명': '법정동명'})
