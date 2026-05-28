@@ -189,41 +189,16 @@ def get_amenity_data():
     result = result.rename(columns={'행정동_코드_명': 'dong'})
     return result
 
-
 def get_safety_data():
-    """안전 파트: 파출소/유흥업소/인구 원본 → 행정동별 안전 점수"""
-    df_police        = pd.read_csv(BASE + 'police.csv')
-    df_entertainment = pd.read_csv(BASE + 'entertainment.csv')
-    df_police        = df_police.rename(columns={'행정동명': '행정동'})
-    df_entertainment = df_entertainment.rename(columns={'행정동명': '행정동'})
-
-    df_pop_raw     = pd.read_csv(BASE + 'population.csv', skiprows=3, header=None)
-    df_pop_cleaned = df_pop_raw[[1, 2, 4]].copy()
-    df_pop_cleaned.columns = ['자치구', '행정동', '총인구수']
-    df_gwanak_pop  = df_pop_cleaned[df_pop_cleaned['자치구'] == '관악구'].reset_index(drop=True)
-
-    df_merged = pd.merge(df_gwanak_pop, df_police,        on='행정동', how='left')
-    df_merged = pd.merge(df_merged,     df_entertainment, on='행정동', how='left')
-    df_merged['지구대_파출소_개수'] = df_merged['지구대_파출소_개수'].fillna(0)
-    df_merged['유흥업소개수']       = df_merged['유흥업소개수'].fillna(0)
-    df_merged = df_merged[df_merged['행정동'] != '소계'].reset_index(drop=True)
-
-    df_merged['지구대_인구밀도']   = df_merged['지구대_파출소_개수'] / df_merged['총인구수'] * 10000
-    df_merged['유흥업소_인구밀도'] = df_merged['유흥업소개수']       / df_merged['총인구수'] * 10000
-
-    def min_max(s):
-        return (s - s.min()) / (s.max() - s.min()) if s.max() != s.min() else s * 0
-
-    df_merged['지구대_Scaled']     = min_max(df_merged['지구대_인구밀도'])
-    df_merged['유흥업소_안전지표'] = 1 - min_max(df_merged['유흥업소_인구밀도'])
-    df_merged['안전_점수']         = (
-        0.4 * df_merged['지구대_Scaled'] + 0.6 * df_merged['유흥업소_안전지표']
-    ) * 100
-
-    result = df_merged[['행정동', '안전_점수']].rename(columns={'행정동': 'dong'})
+    """안전 파트: 완성된 CSV 직접 로드"""
+    df = pd.read_csv(BASE + 'safety.csv', encoding='utf-8-sig')
+    result = (df[['행정동', '최종_안전_점수']]
+              .rename(columns={'행정동': 'dong', '최종_안전_점수': '안전_점수'}))
     result['dong'] = result['dong'].replace('온천동', '은천동')
     return result
 
+
+    
 
 @st.cache_data
 def load_data():
