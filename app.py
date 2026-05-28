@@ -24,7 +24,8 @@ except Exception:
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 # ─── 전역 설정 ───────────────────────────────────────────────
-BASE = 'data/'
+import os
+BASE = os.path.join(os.path.dirname(__file__), 'data') + '/'
 
 카테고리 = ['주거비', '대중교통', '서울대', '안전', '식당', '병원/약국', '카페', '세탁소', '마트']
 컬럼맵 = {
