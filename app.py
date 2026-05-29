@@ -10,6 +10,7 @@ import json
 import os
 import random
 import warnings
+import plotly.express as px
 warnings.filterwarnings('ignore')
 
 # ─── 페이지 설정 ─────────────────────────────────────────────
@@ -669,6 +670,48 @@ for ax, dong, color in zip(axes4, top3, colors):
 plt.tight_layout()
 st.pyplot(fig4)
 plt.close(fig4)
+
+st.divider()
+
+
+# ════════════════════════════════════════════════════════════
+# 단계구분도 (Choropleth Map)
+# ════════════════════════════════════════════════════════════
+
+st.subheader("🗺️ 관악구 행정동별 자취 점수 지도")
+st.caption("색이 진할수록 현재 가중치 기준 자취 점수가 높은 동네예요.")
+
+try:
+    with open('data/gwanak_boundary.geojson', 'r') as f:
+        geojson = json.load(f)
+
+    map_df = result[['행정동', '자취점수']].copy()
+
+    fig_map = px.choropleth_mapbox(
+        map_df,
+        geojson=geojson,
+        locations='행정동',
+        featureidkey='properties.행정동',
+        color='자취점수',
+        color_continuous_scale='RdYlGn',
+        range_color=(map_df['자취점수'].min(), map_df['자취점수'].max()),
+        mapbox_style='carto-positron',
+        zoom=12,
+        center={'lat': 37.478, 'lon': 126.951},
+        opacity=0.7,
+        hover_name='행정동',
+        hover_data={'자취점수': True},
+        labels={'자취점수': '자취점수'},
+    )
+    fig_map.update_layout(
+        margin={"r": 0, "t": 0, "l": 0, "b": 0},
+        height=500,
+        coloraxis_colorbar=dict(title="자취점수")
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
+
+except FileNotFoundError:
+    st.warning("지도 파일(gwanak_boundary.geojson)을 data 폴더에 업로드해주세요.")
 
 st.divider()
 
