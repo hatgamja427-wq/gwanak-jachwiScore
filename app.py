@@ -8,6 +8,7 @@ import matplotlib
 from sklearn.preprocessing import MinMaxScaler
 import json
 import os
+import random
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -47,6 +48,126 @@ VALID_DONGS = [
 ]
 
 VOTE_FILE = 'votes.json'
+
+
+# ════════════════════════════════════════════════════════════
+# 조사 자동 선택 함수
+# ════════════════════════════════════════════════════════════
+
+def 받침있음(word):
+    last = word[-1]
+    if '가' <= last <= '힣':
+        return (ord(last) - 0xAC00) % 28 != 0
+    return False
+
+def 을를(word): return "을" if 받침있음(word) else "를"
+def 은는(word): return "은" if 받침있음(word) else "는"
+def 이가(word): return "이" if 받침있음(word) else "가"
+
+
+# ════════════════════════════════════════════════════════════
+# 항목별 표현 사전
+# ════════════════════════════════════════════════════════════
+
+항목_강점표현 = {
+    '주거비':        "주거비도 저렴한 편이라 부담이 적어요.",
+    '대중교통':      "대중교통 여건도 좋아 이동이 편리해요.",
+    '서울대 접근성': "서울대 접근성도 좋아 통학이 수월해요.",
+    '안전':          "안전 환경도 양호해서 안심하고 지낼 수 있어요.",
+    '식당':          "식당 인프라도 탄탄해서 끼니 걱정이 없어요.",
+    '병원/약국':     "병원·약국 인프라도 잘 갖춰져 있어요.",
+    '카페':          "카페 인프라도 풍부해서 여유롭게 즐길 수 있어요.",
+    '세탁소':        "세탁소도 가까이 있어 생활이 편리해요.",
+    '마트':          "마트·편의점도 풍부해서 장보기가 편해요.",
+}
+
+항목_약점표현 = {
+    '주거비':        "주거비가 다소 높은 편이라 예산을 잘 따져보세요.",
+    '대중교통':      "대중교통 여건이 다소 아쉬우니 이동 수단을 미리 확인해보세요.",
+    '서울대 접근성': "서울대까지 거리가 있어 통학 시간을 감안해야 해요.",
+    '안전':          "안전 환경이 다소 아쉬운 편이니 참고하세요.",
+    '식당':          "주변 식당이 부족한 편이니 미리 확인해보세요.",
+    '병원/약국':     "근처 병원·약국이 적은 편이라 비상시 대비가 필요해요.",
+    '카페':          "카페 인프라가 부족한 편이니 참고하세요.",
+    '세탁소':        "세탁소가 적은 편이라 위치를 미리 파악해두면 좋아요.",
+    '마트':          "마트·편의점이 다소 부족하니 미리 확인해보세요.",
+}
+
+
+# ════════════════════════════════════════════════════════════
+# 등급 변환 함수
+# ════════════════════════════════════════════════════════════
+
+def 점수to등급(v):
+    if v >= 0.8: return 'A+'
+    elif v >= 0.6: return 'A'
+    elif v >= 0.4: return 'B+'
+    elif v >= 0.2: return 'B'
+    else: return 'C'
+
+
+# ════════════════════════════════════════════════════════════
+# 추천 코멘트 생성 함수
+# ════════════════════════════════════════════════════════════
+
+def 추천_코멘트_생성(dong, row, 가중치맵, 카테고리, 컬럼맵):
+    중요항목     = sorted(가중치맵, key=가중치맵.get, reverse=True)[:2]
+    중요1, 중요2 = 중요항목[0], 중요항목[1]
+    중요1_등급   = 점수to등급(row[컬럼맵[중요1]])
+
+    강점      = max(카테고리, key=lambda c: row[컬럼맵[c]])
+    약점      = min(카테고리, key=lambda c: row[컬럼맵[c]])
+    약점_등급 = 점수to등급(row[컬럼맵[약점]])
+
+    # 강점이 중요1과 겹칠 때 두 번째 강점 사용
+    강점_표현대상 = (
+        sorted(카테고리, key=lambda c: row[컬럼맵[c]], reverse=True)[1]
+        if 강점 == 중요1 else 강점
+    )
+
+    # 동네명 기반 고정 시드 (같은 동네 = 항상 같은 문장 구조)
+    random.seed(hash(dong) % 1000)
+
+    # 문장1: 중요 항목 기반
+    if 중요1_등급 in ['A+', 'A']:
+        문장1 = random.choice([
+            f"가장 중요하게 설정한 {중요1}에서 두각을 나타내는 동네예요.",
+            f"{중요1}{을를(중요1)} 최우선으로 두신다면 정말 잘 맞는 곳이에요.",
+            f"{중요1} 면에서 관악구 내 손꼽히는 동네 중 하나예요.",
+        ])
+    elif 중요1_등급 == 'B+':
+        문장1 = random.choice([
+            f"{중요1} 면에서 평균 이상으로 무난한 동네예요.",
+            f"{중요1}{은는(중요1)} 크게 걱정하지 않아도 될 수준이에요.",
+        ])
+    else:
+        문장1 = random.choice([
+            f"{중요1}{이가(중요1)} 강점은 아니지만 다른 항목들이 잘 보완해줘요.",
+            f"{중요1}{은는(중요1)} 아쉬운 편이지만 전반적인 균형은 나쁘지 않아요.",
+        ])
+
+    # 문장2: 강점 기반
+    문장2_prefix = random.choice(["게다가 ", "더불어 ", "또한 "])
+    문장2 = 문장2_prefix + 항목_강점표현[강점_표현대상]
+
+    # 문장3: 약점 (B 이하일 때만)
+    문장3 = f"다만 {항목_약점표현[약점]}" if 약점_등급 in ['C', 'B'] else ""
+
+    코멘트 = 문장1 + " " + 문장2
+    if 문장3:
+        코멘트 += " " + 문장3
+
+    # 태그 생성
+    태그 = []
+    for c in 중요항목:
+        등급 = 점수to등급(row[컬럼맵[c]])
+        색  = 'green' if 등급 in ['A+', 'A'] else 'red'
+        이모 = '✅' if 색 == 'green' else '⚠️'
+        태그.append((이모, c, 등급, 색))
+    if 약점 not in 중요항목:
+        태그.append(('⚠️', 약점, 약점_등급, 'red'))
+
+    return 코멘트, 태그
 
 
 # ════════════════════════════════════════════════════════════
@@ -371,9 +492,58 @@ colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
 # ════════════════════════════════════════════════════════════
 
 st.subheader("🏆 상위 3개 추천 동네")
-col1, col2, col3 = st.columns(3)
-for col, (i, row_r) in zip([col1, col2, col3], result.head(3).iterrows()):
-    col.metric(label=f"{i}위", value=row_r['행정동'], delta=f"{row_r['자취점수']}점")
+
+medal       = ['🥇', '🥈', '🥉']
+card_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+cols        = st.columns(3)
+
+for idx, (col, (i, row_r)) in enumerate(zip(cols, result.head(3).iterrows())):
+    dong = row_r['행정동']
+    row  = temp[temp['dong'] == dong].iloc[0]
+
+    코멘트, 태그 = 추천_코멘트_생성(dong, row, 가중치맵, 카테고리, 컬럼맵)
+
+    태그_html = ''.join([
+        f'<span style="'
+        f'background:{"#e8f5e9" if t[3]=="green" else "#fce4ec"};'
+        f'color:{"#2e7d32" if t[3]=="green" else "#c62828"};'
+        f'padding:3px 9px; border-radius:12px;'
+        f'font-size:11px; font-weight:600; margin-right:4px;">'
+        f'{t[0]} {t[1]} {t[2]}</span>'
+        for t in 태그
+    ])
+
+    with col:
+        st.markdown(
+            f"""
+            <div style="
+                background: white;
+                border-radius: 14px;
+                border-top: 5px solid {card_colors[idx]};
+                padding: 18px 16px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            ">
+                <div style="font-size:12px; color:#999; margin-bottom:4px;">
+                    {medal[idx]} {i}위
+                </div>
+                <div style="font-size:22px; font-weight:700; margin-bottom:2px;">
+                    {dong}
+                </div>
+                <div style="font-size:13px; color:#4CAF50;
+                            font-weight:600; margin-bottom:12px;">
+                    ▲ {row_r['자취점수']}점
+                </div>
+                <div style="font-size:13px; color:#444;
+                            line-height:1.75; margin-bottom:14px;">
+                    {코멘트}
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                    {태그_html}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 st.caption(
     f"적용 가중치 — 주거비 {W['주거비']:.0%} | 교통 {W['교통']:.0%} "
@@ -395,13 +565,6 @@ st.divider()
 
 st.subheader("방향 1 — 등급표 + 한줄 요약")
 st.caption("⭐ = 내가 중요하게 설정한 상위 3개 항목")
-
-def 점수to등급(v):
-    if v >= 0.8: return 'A+'
-    elif v >= 0.6: return 'A'
-    elif v >= 0.4: return 'B+'
-    elif v >= 0.2: return 'B'
-    else: return 'C'
 
 중요항목 = sorted(가중치맵, key=가중치맵.get, reverse=True)[:3]
 헤더표시 = [c + '⭐' if c in 중요항목 else c for c in 카테고리]
