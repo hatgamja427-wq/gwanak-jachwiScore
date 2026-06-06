@@ -392,18 +392,45 @@ df = load_data()
 st.title("🏠 관악구 자취 점수 산출기")
 st.markdown("항목별 중요도를 설정하면 나에게 맞는 동네 순위를 알려드려요.")
 
+# [추가된 부분] 🚀 4가지 페르소나 퀵 세팅 버튼
+st.markdown("##### 🚀 페르소나 퀵 세팅 (버튼을 누르면 가중치가 자동 세팅됩니다)")
+col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+
+if col_p1.button("💸 가성비 최우선"):
+    st.session_state.w_rent = 100
+    st.session_state.w_trans = 20
+    st.session_state.w_safe = 20
+    st.session_state.w_conv = 20
+if col_p2.button("🚇 뚜벅이 (교통 위주)"):
+    st.session_state.w_rent = 20
+    st.session_state.w_trans = 100
+    st.session_state.w_safe = 20
+    st.session_state.w_conv = 20
+if col_p3.button("🚓 안전 제일주의"):
+    st.session_state.w_rent = 20
+    st.session_state.w_trans = 20
+    st.session_state.w_safe = 100
+    st.session_state.w_conv = 20
+if col_p4.button("🛍️ 인프라 매니아"):
+    st.session_state.w_rent = 20
+    st.session_state.w_trans = 20
+    st.session_state.w_safe = 20
+    st.session_state.w_conv = 100
+
 with st.expander("⚙️ 가중치 설정하기 (클릭해서 열기)", expanded=True):
     st.markdown("##### 대분류 가중치 — 각 항목이 얼마나 중요한지 설정하세요 (0~100)")
     st.caption("숫자가 클수록 해당 항목을 더 중요하게 반영합니다. 합계가 자동으로 비율로 환산됩니다.")
     col1, col2, col3, col4 = st.columns(4)
+    
+    # [수정된 부분] 버튼과 연동하기 위해 st.slider 맨 뒤에 key='...' 를 추가했습니다.
     with col1:
-        s_주거비   = st.slider('🏠 주거비', 0, 100, 50, 5)
+        s_주거비   = st.slider('🏠 주거비', 0, 100, 50, 5, key='w_rent')
     with col2:
-        s_교통     = st.slider('🚇 교통', 0, 100, 40, 5)
+        s_교통     = st.slider('🚇 교통', 0, 100, 40, 5, key='w_trans')
     with col3:
-        s_안전     = st.slider('🔒 안전', 0, 100, 50, 5)
+        s_안전     = st.slider('🔒 안전', 0, 100, 50, 5, key='w_safe')
     with col4:
-        s_편의시설 = st.slider('🛒 편의시설', 0, 100, 60, 5)
+        s_편의시설 = st.slider('🛒 편의시설', 0, 100, 60, 5, key='w_conv')
 
     st.markdown("---")
     st.markdown("##### 세부 항목 가중치 — 교통과 편의시설 내 세부 비중을 설정하세요")
@@ -434,6 +461,9 @@ with st.expander("⚙️ 가중치 설정하기 (클릭해서 열기)", expanded
 대분류     = {'주거비': s_주거비, '교통': s_교통, '안전': s_안전, '편의시설': s_편의시설}
 대분류_합  = sum(대분류.values()) or 1
 W          = {k: v / 대분류_합 for k, v in 대분류.items()}
+
+# [추가된 부분] 💡 자동 계산된 실제 적용 비율(%) 텍스트 표시
+st.info(f"💡 **실제 적용 비율** ➔ 🏠 주거비 {W['주거비']*100:.1f}% | 🚇 교통 {W['교통']*100:.1f}% | 🔒 안전 {W['안전']*100:.1f}% | 🛒 편의시설 {W['편의시설']*100:.1f}%")
 
 교통_합    = s_대중교통 + s_서울대 or 1
 W_대중교통 = s_대중교통 / 교통_합
