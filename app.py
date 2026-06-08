@@ -752,4 +752,4 @@ st.divider()
 
 st.subheader("📝 사용자 검토 설문")
 st.markdown("앱을 충분히 사용해보신 후 아래 설문에 참여해주세요. 소요 시간은 약 5분입니다.")
-st.link_button("설문 참여하기 →", "구글폼_링크_여기에_입력")
+st.link_button("설문 참여하기 →", "https://docs.google.com/forms/d/e/1FAIpQLSd20hRXJp8P0YvFG79IXcZA0U0qO3-T83YhgNWlH-u6qCsNNQ/viewform")
